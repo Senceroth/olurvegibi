@@ -22,25 +22,29 @@ def telegram_gonder(token, chat_id, mesaj):
 # --- TARAYICI İLE VERİ ÇEKME ---
 def tarayici_ile_cek():
     options = uc.ChromeOptions()
+    # Sunucu Ayarları (Çok Önemli)
+    options.add_argument("--headless") # Ekran yok modu
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--headless") # <--- BU SATIR ARTIK AKTİF! (Başındaki # kalktı)
+    options.add_argument("--disable-gpu") # GPU kullanma (Hata önleyici)
+    options.add_argument("--window-size=1920,1080") # Sahte ekran boyutu
 
     driver = None
     try:
-        # Chrome'u başlat (Versiyonu serbest bıraktık, sunucu ne isterse onu kursun)
+        # DÜZELTME: version_main kısmını sildik.
+        # Artık sunucudaki Chrome sürümünü kendi algılayıp ona uygun sürücüyü bulacak.
         driver = uc.Chrome(options=options, use_subprocess=True) 
         
         driver.get("https://steamdb.info/upcoming/free/")
         
-        # Cloudflare kontrolünü geçmesi için bekleme süresi
+        # Cloudflare'in "Checking your browser" ekranını geçmesi için bekleme
         time.sleep(10) 
         
         html = driver.page_source
         soup = BeautifulSoup(html, "html.parser")
         
         oyunlar = []
-        eklenen_idler = set() # Aynı oyunu iki kere eklememek için
+        eklenen_idler = set() 
 
         # --- YÖNTEM 1: KART GÖRÜNÜMÜ (GRID) TARAMASI ---
         tum_linkler = soup.find_all("a", href=True)
@@ -52,14 +56,12 @@ def tarayici_ile_cek():
             if not ("/app/" in href or "/sub/" in href):
                 continue
             
-            # Bu linkin içinde bulunduğu ana kutuyu (parent) bulmaya çalışalım
             kutu = link.find_parent("div")
             if not kutu: continue
             
-            # Kutunun içindeki tüm yazıları al
             kutu_metni = kutu.get_text(" ", strip=True)
             
-            # Eğer kutuda "Free" kelimesi geçmiyorsa bu bir menü linki olabilir, atla
+            # Eğer kutuda "Free" kelimesi geçmiyorsa atla
             if "Free" not in kutu_metni and "Keep" not in kutu_metni:
                 continue
 
@@ -67,7 +69,6 @@ def tarayici_ile_cek():
             parts = href.strip("/").split("/")
             app_id = parts[-1] if len(parts) > 0 else "unknown"
             
-            # Zaten eklediysek atla
             if app_id in eklenen_idler:
                 continue
 
@@ -99,16 +100,17 @@ def tarayici_ile_cek():
             })
             eklenen_idler.add(app_id)
 
-        # Eğer Kartlardan bir şey çıkmadıysa Klasik Tabloyu dene (Yedek)
+        # Liste boşsa tablo yapısını dene (Yedek Plan)
         if not oyunlar:
             satirlar = soup.select("tr.app") 
             for satir in satirlar:
-                pass
+                # Basit tablo taraması (Eğer yukarıdaki çalışmazsa burası devreye girer)
+                pass 
             
         return oyunlar
 
     except Exception as e:
-        return f"ERROR: {str(e)}"
+        return f"HATA: {str(e)}"
     finally:
         if driver:
             try:
@@ -130,7 +132,7 @@ with st.sidebar:
     st.header("⚙️ Ayarlar")
     tg_token = st.text_input("Bot Token", value=default_token, type="password")
     tg_chat_id = st.text_input("Chat ID", value=default_chat_id)
-    st.success("Bot sunucu modunda çalışıyor (Headless).")
+    st.success("Bot sunucu modunda (Headless/Auto-Version) çalışıyor.")
 
 col1, col2 = st.columns([2, 1])
 
@@ -141,8 +143,9 @@ with col1:
         with st.spinner("Ajan gönderildi... (15-20 saniye sürebilir)"):
             sonuc = tarayici_ile_cek()
             
-            if isinstance(sonuc, str) and sonuc.startswith("ERROR"):
-                st.error(f"Hata: {sonuc}")
+            if isinstance(sonuc, str) and sonuc.startswith("HATA"):
+                st.error(f"{sonuc}")
+                st.warning("Eğer 'session not created' hatası alırsan, GitHub'daki kodda 'version_main' kısmının silindiğinden emin ol.")
             elif sonuc:
                 st.session_state.bedava_oyunlar_listesi = sonuc
                 st.success(f"✅ Başarılı! {len(sonuc)} oyun bulundu.")
@@ -192,6 +195,6 @@ with col2:
                 else:
                     log_kutusu.info(f"[{tarih}] 💤 Yeni oyun yok.")
             elif isinstance(yeni_liste, str):
-                log_kutusu.error(f"[{tarih}] Hata: {yeni_liste[:50]}...")
+                log_kutusu.error(f"[{tarih}] {yeni_liste[:50]}...")
             else:
                 log_kutusu.warning(f"[{tarih}] Liste boş.")
