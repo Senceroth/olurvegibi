@@ -24,11 +24,11 @@ def tarayici_ile_cek():
     options = uc.ChromeOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--headless") # <-- BU SATIR ÇOK ÖNEMLİ (Sunucuda ekran olmadığı için açtık)
+    options.add_argument("--headless") # <--- BU SATIR ARTIK AKTİF! (Başındaki # kalktı)
 
     driver = None
     try:
-        # Chrome'u başlat (Sürüm kilidini kaldırdık, sunucu ne varsa onu kullansın)
+        # Chrome'u başlat (Versiyonu serbest bıraktık, sunucu ne isterse onu kursun)
         driver = uc.Chrome(options=options, use_subprocess=True) 
         
         driver.get("https://steamdb.info/upcoming/free/")
