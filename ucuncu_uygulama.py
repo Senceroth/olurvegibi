@@ -22,22 +22,22 @@ def telegram_gonder(token, chat_id, mesaj):
 # --- TARAYICI İLE VERİ ÇEKME ---
 def tarayici_ile_cek():
     options = uc.ChromeOptions()
-    # Sunucu Ayarları (Çok Önemli)
-    options.add_argument("--headless") # Ekran yok modu
+    # Sunucu Ayarları
+    options.add_argument("--headless") # Ekran yok modu (Zorunlu)
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu") # GPU kullanma (Hata önleyici)
-    options.add_argument("--window-size=1920,1080") # Sahte ekran boyutu
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
 
     driver = None
     try:
-        # DÜZELTME: version_main kısmını sildik.
-        # Artık sunucudaki Chrome sürümünü kendi algılayıp ona uygun sürücüyü bulacak.
-        driver = uc.Chrome(options=options, use_subprocess=True) 
+        # DÜZELTME: Hata mesajına göre sunucuda Chrome 144 var.
+        # Biz de sürücüyü 144'e sabitliyoruz ki çakışma olmasın.
+        driver = uc.Chrome(options=options, use_subprocess=True, version_main=144) 
         
         driver.get("https://steamdb.info/upcoming/free/")
         
-        # Cloudflare'in "Checking your browser" ekranını geçmesi için bekleme
+        # Cloudflare kontrolünü geçmesi için bekleme
         time.sleep(10) 
         
         html = driver.page_source
@@ -52,7 +52,6 @@ def tarayici_ile_cek():
         for link in tum_linkler:
             href = link['href']
             
-            # Sadece oyun (app) veya paket (sub) linklerine bak
             if not ("/app/" in href or "/sub/" in href):
                 continue
             
@@ -61,18 +60,15 @@ def tarayici_ile_cek():
             
             kutu_metni = kutu.get_text(" ", strip=True)
             
-            # Eğer kutuda "Free" kelimesi geçmiyorsa atla
             if "Free" not in kutu_metni and "Keep" not in kutu_metni:
                 continue
 
-            # ID'yi al
             parts = href.strip("/").split("/")
             app_id = parts[-1] if len(parts) > 0 else "unknown"
             
             if app_id in eklenen_idler:
                 continue
 
-            # Oyun Adını Bulma
             oyun_adi = link.get_text(strip=True)
             if not oyun_adi or len(oyun_adi) < 2:
                 baslik_tag = kutu.find("b") or kutu.find("h3") or kutu.find("span", class_="name")
@@ -81,7 +77,6 @@ def tarayici_ile_cek():
                 else:
                     oyun_adi = "Oyun Başlığı Bulunamadı"
 
-            # Türü Belirle
             tur = "Bilinmiyor"
             if "Free to Keep" in kutu_metni:
                 tur = "🎁 Sonsuza Kadar Senin (Keep)"
@@ -90,7 +85,6 @@ def tarayici_ile_cek():
             
             steam_link = f"https://store.steampowered.com/app/{app_id}/" if "app" in href else f"https://store.steampowered.com/sub/{app_id}/"
             
-            # Listeye Ekle
             oyunlar.append({
                 "ad": oyun_adi,
                 "link": steam_link,
@@ -100,11 +94,9 @@ def tarayici_ile_cek():
             })
             eklenen_idler.add(app_id)
 
-        # Liste boşsa tablo yapısını dene (Yedek Plan)
         if not oyunlar:
             satirlar = soup.select("tr.app") 
             for satir in satirlar:
-                # Basit tablo taraması (Eğer yukarıdaki çalışmazsa burası devreye girer)
                 pass 
             
         return oyunlar
@@ -132,7 +124,7 @@ with st.sidebar:
     st.header("⚙️ Ayarlar")
     tg_token = st.text_input("Bot Token", value=default_token, type="password")
     tg_chat_id = st.text_input("Chat ID", value=default_chat_id)
-    st.success("Bot sunucu modunda (Headless/Auto-Version) çalışıyor.")
+    st.info("ℹ️ Sürüm 144'e sabitlendi.")
 
 col1, col2 = st.columns([2, 1])
 
@@ -145,7 +137,7 @@ with col1:
             
             if isinstance(sonuc, str) and sonuc.startswith("HATA"):
                 st.error(f"{sonuc}")
-                st.warning("Eğer 'session not created' hatası alırsan, GitHub'daki kodda 'version_main' kısmının silindiğinden emin ol.")
+                st.warning("Eğer yine sürüm hatası alırsan GitHub'daki sayıyı kontrol et.")
             elif sonuc:
                 st.session_state.bedava_oyunlar_listesi = sonuc
                 st.success(f"✅ Başarılı! {len(sonuc)} oyun bulundu.")
