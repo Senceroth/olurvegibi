@@ -24,13 +24,12 @@ def tarayici_ile_cek():
     options = uc.ChromeOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    # options.add_argument("--headless") # Pencereli modda çalışsın ki görelim
+    options.add_argument("--headless") # <-- BU SATIR ÇOK ÖNEMLİ (Sunucuda ekran olmadığı için açtık)
 
     driver = None
     try:
-        # Chrome'u başlat (SÜRÜM 144'E SABİTLENDİ)
-        # Eğer Chrome güncellenirse buradaki sayıyı 145, 146 yapman gerekebilir.
-        driver = uc.Chrome(options=options, use_subprocess=True, version_main=144) 
+        # Chrome'u başlat (Sürüm kilidini kaldırdık, sunucu ne varsa onu kullansın)
+        driver = uc.Chrome(options=options, use_subprocess=True) 
         
         driver.get("https://steamdb.info/upcoming/free/")
         
@@ -44,11 +43,6 @@ def tarayici_ile_cek():
         eklenen_idler = set() # Aynı oyunu iki kere eklememek için
 
         # --- YÖNTEM 1: KART GÖRÜNÜMÜ (GRID) TARAMASI ---
-        # Sayfadaki "Free to Keep" veya "Play For Free" yazılarını bulup oradan oyunu yakalayalım.
-        # Bu yöntem site tasarımı değişse bile genellikle çalışır.
-        
-        # Tüm potansiyel oyun kutularını bul (Genelde 'div' içindedirler)
-        # Sayfadaki tüm linkleri tarayıp app/sub linki olanları ayıklıyoruz
         tum_linkler = soup.find_all("a", href=True)
         
         for link in tum_linkler:
@@ -77,15 +71,13 @@ def tarayici_ile_cek():
             if app_id in eklenen_idler:
                 continue
 
-            # Oyun Adını Bulma (Linkin kendisi yazı içeriyorsa o, değilse yanındakiler)
+            # Oyun Adını Bulma
             oyun_adi = link.get_text(strip=True)
             if not oyun_adi or len(oyun_adi) < 2:
-                # Link resim olabilir, o zaman kutudaki diğer başlıkları ara
                 baslik_tag = kutu.find("b") or kutu.find("h3") or kutu.find("span", class_="name")
                 if baslik_tag:
                     oyun_adi = baslik_tag.get_text(strip=True)
                 else:
-                    # En kötü ihtimalle dosya adından vs bulmaya çalışırız ama şimdilik "Bilinmeyen Oyun" diyelim
                     oyun_adi = "Oyun Başlığı Bulunamadı"
 
             # Türü Belirle
@@ -111,7 +103,6 @@ def tarayici_ile_cek():
         if not oyunlar:
             satirlar = soup.select("tr.app") 
             for satir in satirlar:
-                # ... (Eski tablo kodu buraya gerekirse eklenir ama yukarıdaki yöntem çok kapsayıcı)
                 pass
             
         return oyunlar
@@ -139,7 +130,7 @@ with st.sidebar:
     st.header("⚙️ Ayarlar")
     tg_token = st.text_input("Bot Token", value=default_token, type="password")
     tg_chat_id = st.text_input("Chat ID", value=default_chat_id)
-    st.info("ℹ️ **Not:** Chrome sürümü 144.0 olarak ayarlandı. Eğer tarayıcını güncellersen kod hata verebilir.")
+    st.success("Bot sunucu modunda çalışıyor (Headless).")
 
 col1, col2 = st.columns([2, 1])
 
@@ -147,13 +138,11 @@ with col1:
     st.subheader("📋 Liste Durumu")
     
     if st.button("Listeyi Tarayıcıyla Çek"):
-        with st.spinner("Ajan gönderildi... Chrome açılıyor..."):
+        with st.spinner("Ajan gönderildi... (15-20 saniye sürebilir)"):
             sonuc = tarayici_ile_cek()
             
             if isinstance(sonuc, str) and sonuc.startswith("ERROR"):
                 st.error(f"Hata: {sonuc}")
-                if "session not created" in sonuc:
-                    st.warning("Chrome sürümün değişmiş olabilir. Kodun içindeki '144' sayısını kontrol et.")
             elif sonuc:
                 st.session_state.bedava_oyunlar_listesi = sonuc
                 st.success(f"✅ Başarılı! {len(sonuc)} oyun bulundu.")
