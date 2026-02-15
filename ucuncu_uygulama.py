@@ -1,180 +1,170 @@
 import streamlit as st
-from bs4 import BeautifulSoup
+import requests
 import time
 from datetime import datetime
-import undetected_chromedriver as uc
-import requests 
-import os
 
 # --- SAYFA AYARLARI ---
-st.set_page_config(page_title="SteamDB Bedava Oyun Takip", page_icon="🎁", layout="wide")
+st.set_page_config(page_title="Steam Bedava Oyun Avcısı", page_icon="🎁", layout="wide")
 
 # --- TELEGRAM FONKSİYONU ---
-def telegram_gonder(token, chat_id, mesaj):
+def telegram_gonder(token, chat_id, mesaj, resim_url=None):
     if not token or not chat_id: return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": mesaj, "parse_mode": "Markdown"}
+    
     try:
-        requests.post(url, json=payload, timeout=5)
+        # Eğer resim varsa fotoğraflı mesaj atalım, daha şık durur
+        if resim_url:
+            url = f"https://api.telegram.org/bot{token}/sendPhoto"
+            payload = {
+                "chat_id": chat_id,
+                "photo": resim_url,
+                "caption": mesaj,
+                "parse_mode": "Markdown"
+            }
+        else:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            payload = {
+                "chat_id": chat_id,
+                "text": mesaj,
+                "parse_mode": "Markdown"
+            }
+            
+        requests.post(url, json=payload, timeout=10)
         return True
-    except:
+    except Exception as e:
+        print(f"Telegram Hatası: {e}")
         return False
 
-# --- TARAYICI İLE VERİ ÇEKME ---
-def tarayici_ile_cek():
-    options = uc.ChromeOptions()
-    options.add_argument("--headless") 
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-
-    driver = None
-    ekran_goruntusu = None
-    sayfa_basligi = ""
+# --- GAMERPOWER API İLE VERİ ÇEKME ---
+def firsatlari_cek():
+    # Resmi API kullanıyoruz, ban riski yok, Chrome gerekmiyor.
+    url = "https://www.gamerpower.com/api/giveaways"
+    
+    # Sadece Steam ve 'Game' (Oyun) türündekileri istiyoruz (DLC'leri eleyebiliriz veya tutabiliriz)
+    params = {
+        "platform": "steam",
+        "type": "game",
+        "sort-by": "newest"
+    }
 
     try:
-        # Sürüm 144'e sabitli (Hata alırsan burayı silip boş bırakmayı dene)
-        driver = uc.Chrome(options=options, use_subprocess=True, version_main=144) 
+        response = requests.get(url, params=params, timeout=10)
         
-        driver.get("https://steamdb.info/upcoming/free/")
-        
-        # Bekleme süresini biraz arttırdık
-        time.sleep(15) 
-        
-        # Sayfa başlığını al (Debug için)
-        sayfa_basligi = driver.title
-        
-        html = driver.page_source
-        soup = BeautifulSoup(html, "html.parser")
-        
-        oyunlar = []
-        eklenen_idler = set() 
-
-        # Grid Taraması
-        tum_linkler = soup.find_all("a", href=True)
-        for link in tum_linkler:
-            href = link['href']
-            if not ("/app/" in href or "/sub/" in href): continue
+        if response.status_code == 200:
+            data = response.json()
             
-            kutu = link.find_parent("div")
-            if not kutu: continue
+            oyunlar = []
+            for item in data:
+                # Bazen süresi geçmiş olanlar gelebilir, aktif olanları alalım
+                if item.get("status") == "Active":
+                    oyunlar.append({
+                        "id": str(item.get("id")),
+                        "ad": item.get("title"),
+                        "aciklama": item.get("description"),
+                        "resim": item.get("thumbnail"),
+                        "link": item.get("open_giveaway_url"),
+                        "deger": item.get("worth"), # Oyunun normal fiyatı
+                        "bitis": item.get("end_date") # Ne zaman bitiyor
+                    })
+            return oyunlar
+        else:
+            st.error(f"API Hatası: {response.status_code}")
+            return []
             
-            kutu_metni = kutu.get_text(" ", strip=True)
-            if "Free" not in kutu_metni and "Keep" not in kutu_metni: continue
-
-            parts = href.strip("/").split("/")
-            app_id = parts[-1] if len(parts) > 0 else "unknown"
-            
-            if app_id in eklenen_idler: continue
-
-            oyun_adi = link.get_text(strip=True)
-            if not oyun_adi or len(oyun_adi) < 2:
-                baslik_tag = kutu.find("b") or kutu.find("h3") or kutu.find("span", class_="name")
-                oyun_adi = baslik_tag.get_text(strip=True) if baslik_tag else "İsimsiz Oyun"
-
-            tur = "Bilinmiyor"
-            if "Free to Keep" in kutu_metni: tur = "🎁 Sonsuza Kadar Senin (Keep)"
-            elif "Play For Free" in kutu_metni: tur = "⏳ Hafta Sonu Denemesi (Play)"
-            
-            steam_link = f"https://store.steampowered.com/app/{app_id}/" if "app" in href else f"https://store.steampowered.com/sub/{app_id}/"
-            
-            oyunlar.append({"ad": oyun_adi, "link": steam_link, "tur": tur, "zaman": "Sitede", "id": app_id})
-            eklenen_idler.add(app_id)
-
-        # Eğer oyun bulamazsa FOTOĞRAF ÇEK
-        if not oyunlar:
-            driver.save_screenshot("hata_resmi.png")
-            ekran_goruntusu = "hata_resmi.png"
-            
-        return oyunlar, ekran_goruntusu, sayfa_basligi
-
     except Exception as e:
-        return str(e), None, "Hata"
-    finally:
-        if driver:
-            try: driver.quit()
-            except: pass
+        st.error(f"Bağlantı Hatası: {e}")
+        return []
 
 # --- ARAYÜZ ---
-st.title("🎁 SteamDB Ajanı (Kamera Modu)")
+st.title("🎁 Steam Bedava Oyun Avcısı (API Modu)")
+st.markdown("GamerPower altyapısını kullanarak Steam'deki %100 indirimli oyunları listeler. Ban riski yoktur.")
 
+# Kullanıcı Bilgileri
 default_token = "8160497699:AAG2hCZIa_yueqTf3waAUV6r2lXTojUut0A"
 default_chat_id = "8355841229"
 
-if "bedava_oyunlar_listesi" not in st.session_state:
-    st.session_state.bedava_oyunlar_listesi = []
+if "firsat_listesi" not in st.session_state:
+    st.session_state.firsat_listesi = []
 
 with st.sidebar:
     st.header("⚙️ Ayarlar")
     tg_token = st.text_input("Bot Token", value=default_token, type="password")
     tg_chat_id = st.text_input("Chat ID", value=default_chat_id)
-    st.info("Eğer liste boş gelirse, bot ne gördüğünü fotoğraflayıp sana gösterecek.")
+    st.success("✅ API Bağlantısı Hazır (Chrome Gerekmez)")
 
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.subheader("📋 Liste Durumu")
+    st.subheader("📋 Güncel Fırsatlar")
     
-    if st.button("Listeyi Tarayıcıyla Çek"):
-        with st.spinner("Ajan siteye giriyor... (Fotoğraf çekiliyor olabilir)"):
-            sonuc, resim, baslik = tarayici_ile_cek()
+    if st.button("Fırsatları Tara"):
+        with st.spinner("API'den veriler çekiliyor..."):
+            sonuc = firsatlari_cek()
             
-            if isinstance(sonuc, str): # Hata mesajı döndüyse
-                st.error(f"Hata: {sonuc}")
-            
-            elif sonuc: # Oyun bulunduysa
-                st.session_state.bedava_oyunlar_listesi = sonuc
-                st.success(f"✅ Başarılı! {len(sonuc)} oyun bulundu.")
-            
-            else: # Oyun yoksa
-                st.warning(f"Oyun bulunamadı. Botun gördüğü sayfa başlığı: **{baslik}**")
-                if resim:
-                    st.error("Botun gördüğü ekran aşağıdadır (Cloudflare Engeli Olabilir):")
-                    st.image(resim, caption="Botun Gözünden SteamDB", use_column_width=True)
+            if sonuc:
+                st.session_state.firsat_listesi = sonuc
+                st.success(f"✅ {len(sonuc)} adet aktif fırsat bulundu!")
+            else:
+                st.info("Şu an aktif bir Steam fırsatı bulunamadı.")
 
-    if st.session_state.bedava_oyunlar_listesi:
-        for oyun in st.session_state.bedava_oyunlar_listesi:
-            with st.expander(f"🎮 {oyun['ad']}"):
-                st.write(f"📌 **Tür:** {oyun['tur']}")
-                st.link_button("Steam'de Gör", oyun['link'])
+    if st.session_state.firsat_listesi:
+        for oyun in st.session_state.firsat_listesi:
+            with st.container(border=True):
+                col_img, col_text = st.columns([1, 3])
+                with col_img:
+                    st.image(oyun["resim"], use_column_width=True)
+                with col_text:
+                    st.subheader(oyun["ad"])
+                    st.caption(f"💰 Değeri: **{oyun['deger']}** | ⏳ Bitiş: {oyun['bitis']}")
+                    st.write(oyun["aciklama"][:100] + "...")
+                    st.link_button("Fırsata Git 🚀", oyun["link"])
 
 with col2:
     st.subheader("📡 Otomatik Takip")
-    dakika = st.slider("Dakika", 30, 240, 60)
+    dakika = st.slider("Dakika", 15, 240, 60)
     
     if st.button("Takibi Başlat 🚀"):
-        st.success("Takip Başladı!")
-        telegram_gonder(tg_token, tg_chat_id, "🎁 *SteamDB Takibi Başladı!*")
-        
-        # İlk kontrol
-        veriler, _, _ = tarayici_ile_cek()
-        if isinstance(veriler, list):
-            st.session_state.kayitli_idier = [oyun['id'] for oyun in veriler]
+        if not tg_token or not tg_chat_id:
+            st.error("Token bilgileri eksik!")
         else:
-            st.session_state.kayitli_idier = []
-
-        log_kutusu = st.empty()
-        
-        while True:
-            time.sleep(dakika * 60)
-            tarih = datetime.now().strftime('%H:%M')
+            st.success("Avcı Modu Aktif! Arka planda çalışıyor.")
+            telegram_gonder(tg_token, tg_chat_id, "🎁 *Fırsat Avcısı Başladı!* \nSteam için bedava oyunları bekliyorum.")
             
-            yeni_liste, resim_path, _ = tarayici_ile_cek()
-            
-            if isinstance(yeni_liste, list) and yeni_liste:
-                yeni_bulunanlar = 0
-                for oyun in yeni_liste:
-                    if oyun['id'] not in st.session_state.kayitli_idier:
-                        icon = "🎁" if "Keep" in oyun['tur'] else "⏳"
-                        mesaj = f"{icon} *YENİ BEDAVA OYUN!*\n\n🎮 *{oyun['ad']}*\n📌 {oyun['tur']}\n[Steam Linki]({oyun['link']})"
-                        telegram_gonder(tg_token, tg_chat_id, mesaj)
-                        st.session_state.kayitli_idier.append(oyun['id'])
-                        yeni_bulunanlar += 1
-                
-                if yeni_bulunanlar > 0:
-                    log_kutusu.success(f"[{tarih}] ✅ {yeni_bulunanlar} yeni oyun!")
-                else:
-                    log_kutusu.info(f"[{tarih}] 💤 Yeni oyun yok.")
+            # İlk verileri hafızaya al (Eskileri tekrar atmasın)
+            ilk_veri = firsatlari_cek()
+            if ilk_veri:
+                st.session_state.kayitli_idler = [oyun['id'] for oyun in ilk_veri]
             else:
-                log_kutusu.warning(f"[{tarih}] Veri çekilemedi. (Muhtemelen Cloudflare)")
+                st.session_state.kayitli_idler = []
+
+            log_kutusu = st.empty()
+            
+            while True:
+                time.sleep(dakika * 60)
+                tarih = datetime.now().strftime('%H:%M')
+                
+                yeni_liste = firsatlari_cek()
+                
+                if yeni_liste:
+                    yeni_bulunanlar = 0
+                    for oyun in yeni_liste:
+                        if oyun['id'] not in st.session_state.kayitli_idler:
+                            # MESAJ HAZIRLA
+                            mesaj = (
+                                f"🚨 *BEDAVA OYUN FIRSATI!* 🚨\n\n"
+                                f"🎮 *{oyun['ad']}*\n"
+                                f"💰 Değeri: {oyun['deger']}\n"
+                                f"⏳ {oyun['bitis']}\n\n"
+                                f"[👉 Fırsata Git ve Al]({oyun['link']})"
+                            )
+                            # Resimli gönder
+                            telegram_gonder(tg_token, tg_chat_id, mesaj, oyun['resim'])
+                            
+                            st.session_state.kayitli_idler.append(oyun['id'])
+                            yeni_bulunanlar += 1
+                    
+                    if yeni_bulunanlar > 0:
+                        log_kutusu.success(f"[{tarih}] ✅ {yeni_bulunanlar} yeni oyun bulundu!")
+                    else:
+                        log_kutusu.info(f"[{tarih}] 💤 Yeni fırsat yok.")
+                else:
+                    log_kutusu.warning(f"[{tarih}] Veri çekilemedi veya boş.")
