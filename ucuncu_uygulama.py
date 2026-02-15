@@ -4,14 +4,13 @@ import time
 from datetime import datetime
 
 # --- SAYFA AYARLARI ---
-st.set_page_config(page_title="Steam Bedava Oyun Avcısı", page_icon="🎁", layout="wide")
+st.set_page_config(page_title="Bedava Oyun Avcısı (Tüm Platformlar)", page_icon="🎁", layout="wide")
 
 # --- TELEGRAM FONKSİYONU ---
 def telegram_gonder(token, chat_id, mesaj, resim_url=None):
     if not token or not chat_id: return False
     
     try:
-        # Eğer resim varsa fotoğraflı mesaj atalım, daha şık durur
         if resim_url:
             url = f"https://api.telegram.org/bot{token}/sendPhoto"
             payload = {
@@ -36,13 +35,13 @@ def telegram_gonder(token, chat_id, mesaj, resim_url=None):
 
 # --- GAMERPOWER API İLE VERİ ÇEKME ---
 def firsatlari_cek():
-    # Resmi API kullanıyoruz, ban riski yok, Chrome gerekmiyor.
     url = "https://www.gamerpower.com/api/giveaways"
     
-    # Sadece Steam ve 'Game' (Oyun) türündekileri istiyoruz (DLC'leri eleyebiliriz veya tutabiliriz)
+    # ARTIK KAPSAMI GENİŞLETTİK: Sadece Steam değil, PC'deki tüm oyunlar.
+    # platform="pc" -> Steam, Epic Games, Ubisoft, GOG, Itch.io vb. hepsini içerir.
     params = {
-        "platform": "steam",
-        "type": "game",
+        "platform": "pc", 
+        "type": "game",       
         "sort-by": "newest"
     }
 
@@ -54,7 +53,6 @@ def firsatlari_cek():
             
             oyunlar = []
             for item in data:
-                # Bazen süresi geçmiş olanlar gelebilir, aktif olanları alalım
                 if item.get("status") == "Active":
                     oyunlar.append({
                         "id": str(item.get("id")),
@@ -62,8 +60,9 @@ def firsatlari_cek():
                         "aciklama": item.get("description"),
                         "resim": item.get("thumbnail"),
                         "link": item.get("open_giveaway_url"),
-                        "deger": item.get("worth"), # Oyunun normal fiyatı
-                        "bitis": item.get("end_date") # Ne zaman bitiyor
+                        "deger": item.get("worth"),
+                        "bitis": item.get("end_date"),
+                        "platform": item.get("platforms") # Hangi mağaza olduğunu da çekelim
                     })
             return oyunlar
         else:
@@ -75,8 +74,8 @@ def firsatlari_cek():
         return []
 
 # --- ARAYÜZ ---
-st.title("🎁 Steam Bedava Oyun Avcısı (API Modu)")
-st.markdown("GamerPower altyapısını kullanarak Steam'deki %100 indirimli oyunları listeler. Ban riski yoktur.")
+st.title("🎁 Bedava Oyun Avcısı (Steam, Epic, GOG...)")
+st.markdown("PC dünyasındaki tüm **%100 indirimli** oyunları (Steam, Epic Games, GOG, Ubisoft vb.) anlık takip eder.")
 
 # Kullanıcı Bilgileri
 default_token = "8160497699:AAG2hCZIa_yueqTf3waAUV6r2lXTojUut0A"
@@ -89,7 +88,7 @@ with st.sidebar:
     st.header("⚙️ Ayarlar")
     tg_token = st.text_input("Bot Token", value=default_token, type="password")
     tg_chat_id = st.text_input("Chat ID", value=default_chat_id)
-    st.success("✅ API Bağlantısı Hazır (Chrome Gerekmez)")
+    st.success("✅ Genişletilmiş Tarama Modu Aktif")
 
 col1, col2 = st.columns([2, 1])
 
@@ -97,14 +96,14 @@ with col1:
     st.subheader("📋 Güncel Fırsatlar")
     
     if st.button("Fırsatları Tara"):
-        with st.spinner("API'den veriler çekiliyor..."):
+        with st.spinner("Tüm platformlar taranıyor..."):
             sonuc = firsatlari_cek()
             
             if sonuc:
                 st.session_state.firsat_listesi = sonuc
-                st.success(f"✅ {len(sonuc)} adet aktif fırsat bulundu!")
+                st.success(f"✅ {len(sonuc)} adet oyun bulundu!")
             else:
-                st.info("Şu an aktif bir Steam fırsatı bulunamadı.")
+                st.info("Şu an PC için aktif bir fırsat yok.")
 
     if st.session_state.firsat_listesi:
         for oyun in st.session_state.firsat_listesi:
@@ -114,9 +113,9 @@ with col1:
                     st.image(oyun["resim"], use_column_width=True)
                 with col_text:
                     st.subheader(oyun["ad"])
-                    st.caption(f"💰 Değeri: **{oyun['deger']}** | ⏳ Bitiş: {oyun['bitis']}")
-                    st.write(oyun["aciklama"][:100] + "...")
-                    st.link_button("Fırsata Git 🚀", oyun["link"])
+                    st.caption(f"🏢 **{oyun['platform']}** | 💰 Değeri: **{oyun['deger']}**")
+                    st.write(f"⏳ Bitiş: {oyun['bitis']}")
+                    st.link_button("Oyunu Al 🚀", oyun["link"])
 
 with col2:
     st.subheader("📡 Otomatik Takip")
@@ -126,10 +125,9 @@ with col2:
         if not tg_token or not tg_chat_id:
             st.error("Token bilgileri eksik!")
         else:
-            st.success("Avcı Modu Aktif! Arka planda çalışıyor.")
-            telegram_gonder(tg_token, tg_chat_id, "🎁 *Fırsat Avcısı Başladı!* \nSteam için bedava oyunları bekliyorum.")
+            st.success("Avcı Modu Aktif! Tüm PC platformları izleniyor.")
+            telegram_gonder(tg_token, tg_chat_id, "🎁 *Süper Avcı Başladı!* \nSteam, Epic, GOG ve diğerleri taranıyor.")
             
-            # İlk verileri hafızaya al (Eskileri tekrar atmasın)
             ilk_veri = firsatlari_cek()
             if ilk_veri:
                 st.session_state.kayitli_idler = [oyun['id'] for oyun in ilk_veri]
@@ -148,23 +146,24 @@ with col2:
                     yeni_bulunanlar = 0
                     for oyun in yeni_liste:
                         if oyun['id'] not in st.session_state.kayitli_idler:
-                            # MESAJ HAZIRLA
+                            # MESAJ HAZIRLA (Platform bilgisini de ekledik)
                             mesaj = (
                                 f"🚨 *BEDAVA OYUN FIRSATI!* 🚨\n\n"
                                 f"🎮 *{oyun['ad']}*\n"
+                                f"🏢 Platform: {oyun['platform']}\n"
                                 f"💰 Değeri: {oyun['deger']}\n"
                                 f"⏳ {oyun['bitis']}\n\n"
-                                f"[👉 Fırsata Git ve Al]({oyun['link']})"
+                                f"[👉 Hemen Kap]({oyun['link']})"
                             )
-                            # Resimli gönder
+                            
                             telegram_gonder(tg_token, tg_chat_id, mesaj, oyun['resim'])
                             
                             st.session_state.kayitli_idler.append(oyun['id'])
                             yeni_bulunanlar += 1
                     
                     if yeni_bulunanlar > 0:
-                        log_kutusu.success(f"[{tarih}] ✅ {yeni_bulunanlar} yeni oyun bulundu!")
+                        log_kutusu.success(f"[{tarih}] ✅ {yeni_bulunanlar} yeni oyun!")
                     else:
                         log_kutusu.info(f"[{tarih}] 💤 Yeni fırsat yok.")
                 else:
-                    log_kutusu.warning(f"[{tarih}] Veri çekilemedi veya boş.")
+                    log_kutusu.warning(f"[{tarih}] Veri çekilemedi.")
