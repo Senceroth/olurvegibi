@@ -1,0 +1,27 @@
+name: Oyun Avcisi
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Her 30 dakikada bir çalıştırır
+  workflow_dispatch: # Manuel test butonu ekler
+
+jobs:
+  calistir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu Çek
+        uses: actions/checkout@v3
+
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Kütüphaneleri Yükle
+        run: pip install requests
+
+      - name: Botu Başlat
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python otomatik_bot.py
