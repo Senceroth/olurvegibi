@@ -1,19 +1,27 @@
 import requests
 from bs4 import BeautifulSoup
 import os
-from datetime import datetime, timedelta, timezone
 
 # GITHUB'DAN GELECEK ŞİFRELER
 TOKEN = os.environ.get("TG_TOKEN")
 CHAT_ID = os.environ.get("TG_CHAT_ID")
+HAFIZA_DOSYASI = "hafiza_youtube.txt"
 
 # TAKİP EDİLECEK KANALLAR
-# Buraya istediğin kadar kanal ekleyebilirsin
 KANALLAR = [
     "https://www.youtube.com/@GamingBolt",
     "https://www.youtube.com/@IGN",
     "https://www.youtube.com/@PlayStation"
 ]
+
+def hafiza_oku():
+    if not os.path.exists(HAFIZA_DOSYASI): return []
+    with open(HAFIZA_DOSYASI, "r") as f:
+        return f.read().splitlines()
+
+def hafiza_yaz(veri):
+    with open(HAFIZA_DOSYASI, "a") as f:
+        f.write(f"{veri}\n")
 
 def telegram_gonder(mesaj):
     if not TOKEN or not CHAT_ID: return
@@ -34,7 +42,7 @@ def kanal_rss_bul(kanal_url):
         resp = requests.get(base_url, headers=headers, cookies=cookies, timeout=10)
         soup = BeautifulSoup(resp.content, "html.parser")
         
-        # Meta etiketinden ID bul (YouTube'un kimlik kartı)
+        # Meta etiketinden ID bul
         meta = soup.find("meta", {"itemprop": "channelId"})
         if meta:
             channel_id = meta['content']
@@ -44,8 +52,8 @@ def kanal_rss_bul(kanal_url):
     except: return None
 
 def videolari_kontrol_et():
-    # ŞU ANKİ ZAMAN (UTC - Evrensel Saat)
-    simdi = datetime.now(timezone.utc)
+    # Hafızadaki eski video ID'lerini oku
+    eski_videolar = hafiza_oku()
     
     for kanal_linki in KANALLAR:
         rss_url = kanal_rss_bul(kanal_linki)
@@ -55,19 +63,14 @@ def videolari_kontrol_et():
             resp = requests.get(rss_url, timeout=10)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.content, "xml")
-                videolar = soup.find_all("entry")
+                # En son videoyu al (entry)
+                video = soup.find("entry")
                 
-                # Sadece en son videoya bakmak yeterli
-                if videolar:
-                    video = videolar[0]
-                    # Tarih formatı: 2024-02-05T15:30:00+00:00
-                    tarih_str = video.find("published").text
-                    tarih_obj = datetime.fromisoformat(tarih_str)
+                if video:
+                    video_id = video.find("videoId").text
                     
-                    # EĞER SON 15 DAKİKA İÇİNDE YAYINLANDIYSA (Güncellendi)
-                    # (Bot her 10 dk'da bir çalışacağı için bu süre idealdir)
-                    fark = simdi - tarih_obj
-                    if fark < timedelta(minutes=15):
+                    # EĞER BU VİDEO ID'Sİ HAFIZADA YOKSA -> YENİDİR!
+                    if video_id not in eski_videolar:
                         baslik = video.find("title").text
                         link = video.find("link")['href']
                         kanal_adi = video.find("author").find("name").text
@@ -75,6 +78,10 @@ def videolari_kontrol_et():
                         mesaj = f"▶️ *YENİ VİDEO! ({kanal_adi})*\n\n*{baslik}*\n\n[İzle]({link})"
                         telegram_gonder(mesaj)
                         print(f"Video gönderildi: {baslik}")
+                        
+                        # Hafızaya kaydet
+                        hafiza_yaz(video_id)
+                        eski_videolar.append(video_id)
                     
         except Exception as e:
             print(f"Hata ({kanal_linki}): {e}")
