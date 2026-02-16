@@ -2,10 +2,10 @@ name: Topyekun Takip Sistemi
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # 15 dakikada bir çalış
-  workflow_dispatch:
+    - cron: '*/15 * * * *' # Her 15 dakikada bir çalışır
+  workflow_dispatch: # Manuel çalıştırma butonu
 
-# İZİNLER: Botun hafıza dosyalarını (.txt) depoya yazabilmesi için şart
+# İZİNLER: Botun hafıza dosyalarını (.txt) depoya geri yazabilmesi için şarttır
 permissions:
   contents: write
 
@@ -24,30 +24,33 @@ jobs:
       - name: Kütüphaneleri Yükle
         run: pip install requests beautifulsoup4 lxml
 
-      # --- BOTLARI ÇALIŞTIR ---
+      # --- 1. BOT: GAMERPOWER (FIRSATLAR) ---
       - name: 1. Fırsat Botu (GamerPower)
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python otomatik_bot.py
 
+      # --- 2. BOT: EUROGAMER (HABERLER) ---
       - name: 2. Haber Botu (Eurogamer)
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python haber_botu.py
 
+      # --- 3. BOT: YOUTUBE (VİDEOLAR) ---
       - name: 3. Video Botu (YouTube)
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }} # KRİTİK: Bu satır olmadan API botu çalışmaz!
         run: python youtube_botu.py
 
-      # --- HAFIZAYI KAYDET (KRİTİK ADIM) ---
-      # Botların oluşturduğu hafıza dosyalarını depoya geri yükler (Push eder)
+      # --- HAFIZAYI KAYDET (GİT PUSH) ---
+      # Botların oluşturduğu .txt dosyalarını depoya kalıcı olarak kaydeder
       - name: Hafızayı Güncelle
         run: |
           git config --global user.name 'Takip Botu'
           git config --global user.email 'bot@actions.github.com'
-          git add *.txt || echo "Ekleyecek dosya yok"
+          git add *.txt || echo "Ekleyecek yeni hafıza dosyası yok"
           git diff --quiet && git diff --staged --quiet || (git commit -m "Bot hafızası güncellendi" && git push)
