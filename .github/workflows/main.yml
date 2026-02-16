@@ -5,7 +5,7 @@ on:
     - cron: '*/15 * * * *' # 15 dakikada bir çalış
   workflow_dispatch:
 
-# BU KISIM ÇOK ÖNEMLİ: Bota hafızaya yazma izni veriyoruz
+# İZİNLERİ AÇIYORUZ (Hafıza dosyasını kaydetmesi için şart)
 permissions:
   contents: write
 
@@ -43,11 +43,11 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python youtube_botu.py
 
-      # --- HAFIZAYI KAYDET (Commit & Push) ---
-      # Botun oluşturduğu txt dosyalarını depoya kaydeder
+      # --- HAFIZAYI KAYDET (EN ÖNEMLİ KISIM) ---
+      # Bot çalıştıktan sonra oluşan txt dosyalarını depoya geri yükler
       - name: Hafızayı Güncelle
         run: |
-          git config --global user.name 'GitHub Action Bot'
-          git config --global user.email 'action@github.com'
-          git add *.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Bot hafızası güncellendi" && git push)
+          git config --global user.name 'Bot Takipçisi'
+          git config --global user.email 'bot@actions.github.com'
+          git add *.txt || echo "Eklenecek dosya yok"
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Hafıza güncellendi" && git push)
