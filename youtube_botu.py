@@ -7,27 +7,37 @@ CHAT_ID = os.environ.get("TG_CHAT_ID")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY") 
 HAFIZA_DOSYASI = "hafiza_youtube.txt"
 
-# KESİN VE DOĞRULANMIŞ KANAL ID'LERİ
+# KESİN VE DOĞRULANMIŞ KANAL ID'LERİ (GÜNCELLENDİ)
 KANALLAR = {
-    "GamingBolt": "UCXa_bzvv7Oo1glaW9FldDhQ",   # DÜZELTİLDİ (Claude'un bulduğu doğru ID)
-    "IGN": "UCKy1dAqELo0zrOtPkf0eTMw",          # DÜZELTİLDİ (IGN'in global ID'si)
-    "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"   # Zaten çalışıyordu
+    "GamingBolt": "UCXa_bzvv7Oo1glaW9FldDhQ",
+    "IGN": "UCKy1dAqELo0zrOtPkf0eTMw",
+    "PlayStation": "UC-2Y8dQb0S6DtpxNgAKoJKA", # DÜZELTİLDİ: Resmi PlayStation Kanalı
+    "GameSpot": "UCbu2SsF-Or3Rsn3NxqODImw"    # YENİ EKLENDİ: GameSpot
 }
 
 def hafiza_oku():
+    """Daha önce gönderilen videoların listesini okur."""
     if not os.path.exists(HAFIZA_DOSYASI): return set()
     with open(HAFIZA_DOSYASI, "r") as f:
         return set(f.read().splitlines())
 
 def hafiza_yaz(video_id):
+    """Yeni gönderilen video ID'sini dosyaya kaydeder."""
     with open(HAFIZA_DOSYASI, "a") as f:
         f.write(f"{video_id}\n")
 
 def telegram_gonder(mesaj):
+    """Telegram üzerinden bildirim gönderir."""
     if not TOKEN or not CHAT_ID: return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
-    try: requests.post(url, json=payload, timeout=10)
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": mesaj,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": False
+    }
+    try:
+        requests.post(url, json=payload, timeout=10)
     except: pass
 
 def get_uploads_playlist_id(kanal_id):
