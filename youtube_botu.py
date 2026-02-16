@@ -7,50 +7,32 @@ CHAT_ID = os.environ.get("TG_CHAT_ID")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY") 
 HAFIZA_DOSYASI = "hafiza_youtube.txt"
 
-# Takip edilecek Kanallar (UC... ile başlayan Kanal ID'leri)
-# Bu ID'ler sabittir ve değişmez, en güvenli yoldur.
+# KESİN VE DOĞRULANMIŞ KANAL ID'LERİ
 KANALLAR = {
-    "GamingBolt": "UCf0G79LcyN9oE24yT5p-fVw",
-    "IGN": "UCrPseYLGpN_WUTREjllH2vA",
-    "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"
+    "GamingBolt": "UCXa_bzvv7Oo1glaW9FldDhQ",   # DÜZELTİLDİ (Claude'un bulduğu doğru ID)
+    "IGN": "UCKy1dAqELo0zrOtPkf0eTMw",          # DÜZELTİLDİ (IGN'in global ID'si)
+    "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"   # Zaten çalışıyordu
 }
 
 def hafiza_oku():
-    """Daha önce gönderilen videoların listesini okur."""
-    if not os.path.exists(HAFIZA_DOSYASI):
-        return set()
+    if not os.path.exists(HAFIZA_DOSYASI): return set()
     with open(HAFIZA_DOSYASI, "r") as f:
         return set(f.read().splitlines())
 
 def hafiza_yaz(video_id):
-    """Yeni gönderilen video ID'sini dosyaya kaydeder."""
     with open(HAFIZA_DOSYASI, "a") as f:
         f.write(f"{video_id}\n")
 
 def telegram_gonder(mesaj):
-    """Telegram üzerinden bildirim gönderir."""
-    if not TOKEN or not CHAT_ID:
-        print("HATA: Telegram Token veya Chat ID eksik!")
-        return
+    if not TOKEN or not CHAT_ID: return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": mesaj,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False
-    }
-    try:
-        r = requests.post(url, json=payload, timeout=10)
-        if r.status_code != 200:
-            print(f"Telegram Hatası: {r.text}")
-    except Exception as e:
-        print(f"Telegram bağlantı hatası: {e}")
+    payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
+    try: requests.post(url, json=payload, timeout=10)
+    except: pass
 
 def get_uploads_playlist_id(kanal_id):
     """
-    Kanalın 'Yüklenenler' (Uploads) listesinin ID'sini çeker.
-    Genelde kanal ID'sinin ikinci harfi 'U' yapılarak bulunur ama 
-    resmi yoldan sorgulamak en garantisidir.
+    Kanalın 'Yüklenenler' listesinin gerçek ID'sini API'den sorar.
     """
     url = "https://www.googleapis.com/youtube/v3/channels"
     params = {
@@ -61,14 +43,24 @@ def get_uploads_playlist_id(kanal_id):
     try:
         response = requests.get(url, params=params, timeout=10)
         data = response.json()
+        
+        # Eğer ID yanlışsa API 'items' dizisini boş döndürür
+        if "items" not in data or len(data["items"]) == 0:
+            print(f"Hata: Bu Kanal ID ({kanal_id}) geçersiz!")
+            return None
+            
         return data['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-    except:
-        # Hata durumunda standart YouTube kuralını dene (UC... -> UU...)
-        return "UU" + kanal_id[2:]
+    except Exception as e:
+        print(f"Playlist ID Bulma Hatası: {e}")
+        return None
 
 def son_videoyu_getir(kanal_adi, kanal_id):
-    """PlaylistItems API kullanarak kanalın en son videosunu %100 doğrulukla çeker."""
+    # Önce doğru playlist ID'sini buluyoruz
     uploads_id = get_uploads_playlist_id(kanal_id)
+    
+    if not uploads_id:
+        print(f"Hata: {kanal_adi} için liste bulunamadı.")
+        return None
     
     url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
@@ -88,7 +80,6 @@ def son_videoyu_getir(kanal_adi, kanal_id):
             
         items = data.get("items", [])
         if not items:
-            print(f"{kanal_adi}: Henüz yüklenmiş video bulunamadı.")
             return None
             
         snippet = items[0]["snippet"]
@@ -99,39 +90,29 @@ def son_videoyu_getir(kanal_adi, kanal_id):
             "link": f"https://www.youtube.com/watch?v={v_id}"
         }
     except Exception as e:
-        print(f"Bağlantı Hatası ({kanal_adi}): {e}")
+        print(f"Hata ({kanal_adi}): {e}")
         return None
 
 def videolari_kontrol_et():
-    """Tüm kanalları kontrol eder ve yeni video varsa bildirir."""
     if not YOUTUBE_API_KEY:
-        print("HATA: YOUTUBE_API_KEY eksik! GitHub Secrets'a ekleyin.")
+        print("API Key Eksik!")
         return
 
     eski_videolar = hafiza_oku()
-    print(f"Hafızadaki toplam video sayısı: {len(eski_videolar)}")
     
     for kanal_adi, kanal_id in KANALLAR.items():
-        print(f"Kontrol ediliyor: {kanal_adi}")
-        
+        print(f"Kontrol ediliyor: {kanal_adi}...")
         video = son_videoyu_getir(kanal_adi, kanal_id)
         
-        if video:
-            if video["id"] not in eski_videolar:
-                mesaj = (
-                    f"▶️ *YENİ VİDEO! ({kanal_adi})*\n\n"
-                    f"*{video['baslik']}*\n\n"
-                    f"[Hemen İzle]({video['link']})"
-                )
-                telegram_gonder(mesaj)
-                print(f"GÖNDERİLDİ: {video['baslik']}")
-                
-                # Hafızaya kaydet
-                hafiza_yaz(video["id"])
-                eski_videolar.add(video["id"])
-            else:
-                # Loglarda artık atlanan videoları da görebilirsin
-                print(f"Zaten bildirilmiş: {video['baslik'][:50]}...")
+        if video and video["id"] not in eski_videolar:
+            mesaj = f"▶️ *YENİ VİDEO! ({kanal_adi})*\n\n*{video['baslik']}*\n\n[İzle]({video['link']})"
+            telegram_gonder(mesaj)
+            print(f"--> GÖNDERİLDİ: {video['baslik']}")
+            
+            hafiza_yaz(video["id"])
+            eski_videolar.add(video["id"])
+        elif video:
+            print(f"Zaten kayıtlı: {video['baslik'][:40]}...")
 
 if __name__ == "__main__":
     videolari_kontrol_et()
