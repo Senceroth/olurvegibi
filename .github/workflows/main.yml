@@ -2,7 +2,7 @@ name: Topyekun Takip Sistemi
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Her 30 dakikada bir çalıştır
+    - cron: '*/10 * * * *' # ARTIK HER 10 DAKİKADA BİR ÇALIŞACAK
   workflow_dispatch: # Manuel test butonu
 
 jobs:
