@@ -15,11 +15,19 @@ KANALLAR = {
     "PlayStation": "https://www.youtube.com/@PlayStation"
 }
 
-# DOĞRULANMIŞ KESİN KANAL ID'LERİ (404 almamak için güncellendi)
+# DOĞRULANMIŞ KESİN KANAL ID'LERİ
+# YouTube bazen handle üzerinden ID bulmayı engellediği için yedek liste her zaman hazır.
 YEDEK_IDLER = {
     "GamingBolt": "UCf0G79LcyN9oE24yT5p-fVw",
-    "IGN": "UCrPseYLGpN_WUTREjllH2vA", # IGN'in asıl ID'si budur
+    "IGN": "UC67b8_NfT40X8A3_T3_0gjw",
     "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"
+}
+
+# Standart tarayıcı başlığı
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.google.com/"
 }
 
 def hafiza_oku():
@@ -44,17 +52,13 @@ def telegram_gonder(mesaj):
 
 def kanal_rss_bul(kanal_adi, kanal_url):
     """Kanal URL'sinden ID bulmaya çalışır, bulamazsa manuel listeden çeker."""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    }
     cookies = {'CONSENT': 'YES+cb.20210328-17-p0.en+FX+419'}
     
     try:
-        # Önce canlı kazıma dene
-        resp = requests.get(kanal_url, headers=headers, cookies=cookies, timeout=15)
+        resp = requests.get(kanal_url, headers=HEADERS, cookies=cookies, timeout=15)
         html = resp.text
         
-        # Meta etiketinden ID bul
+        # Meta etiketinden ara
         soup = BeautifulSoup(html, "html.parser")
         meta = soup.find("meta", {"itemprop": "channelId"})
         if meta:
@@ -67,11 +71,12 @@ def kanal_rss_bul(kanal_adi, kanal_url):
             cid = match.group(1)
             return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
             
-    except:
-        pass
+    except Exception as e:
+        print(f"Arama Hatası ({kanal_adi}): {e}")
 
-    # Kazıma başarısız olursa veya hata verirse manuel listeyi kullan
+    # Kazıma başarısız olursa manuel listeyi kullan
     cid = YEDEK_IDLER.get(kanal_adi)
+    print(f"Bilgi: {kanal_adi} için yedek ID kullanılıyor.")
     return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}" if cid else None
 
 def videolari_kontrol_et():
@@ -87,17 +92,18 @@ def videolari_kontrol_et():
             continue
             
         try:
-            # RSS beslemesini çek
-            resp = requests.get(rss_url, timeout=15)
+            # KRİTİK: RSS ÇEKERKEN DE HEADERS KULLANMALIYIZ (404 hatasını bu çözer)
+            resp = requests.get(rss_url, headers=HEADERS, timeout=15)
+            
             if resp.status_code != 200:
-                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code}) - URL: {rss_url}")
+                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code})")
                 continue
 
             soup = BeautifulSoup(resp.content, "xml")
             videolar = soup.find_all("entry")
             
             if not videolar:
-                print(f"{kanal_adi} kanalında video (entry) bulunamadı.")
+                print(f"{kanal_adi} kanalında henüz video bulunamadı.")
                 continue
                 
             video = videolar[0]
