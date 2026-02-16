@@ -1,0 +1,42 @@
+name: Takip Sistemi
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Her 10 dakikada bir çalıştır
+  workflow_dispatch: # Manuel test butonu
+
+jobs:
+  calistir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu Çek
+        uses: actions/checkout@v3
+
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Kütüphaneleri Yükle
+        run: pip install requests beautifulsoup4 lxml
+
+      # --- 1. BOT: GAMERPOWER (FIRSATLAR) ---
+      - name: 1. Fırsat Botunu Çalıştır
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python otomatik_bot.py
+
+      # --- 2. BOT: EUROGAMER (HABERLER) ---
+      - name: 2. Haber Botunu Çalıştır
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python haber_botu.py
+
+      # --- 3. BOT: YOUTUBE (VİDEOLAR) ---
+      - name: 3. Video Botunu Çalıştır
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python youtube_botu.py
