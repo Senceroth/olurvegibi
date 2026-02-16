@@ -39,11 +39,15 @@ def firsatlari_tara():
                 if item.get("status") == "Active":
                     # YAYINLANMA TARİHİNE BAK
                     yayin_tarihi_str = item.get("published_date")
-                    yayin_tarihi = datetime.strptime(yayin_tarihi_str, "%Y-%m-%d %H:%M:%S")
+                    try:
+                        yayin_tarihi = datetime.strptime(yayin_tarihi_str, "%Y-%m-%d %H:%M:%S")
+                    except:
+                        continue # Tarih hatası varsa atla
                     
-                    # EĞER SON 45 DAKİKA İÇİNDE YAYINLANDIYSA BİLDİR
+                    # EĞER SON 15 DAKİKA İÇİNDE YAYINLANDIYSA BİLDİR
+                    # (Bot her 10 dk'da bir çalışacağı için 5 dk güvenlik payı ile 15 dk idealdir)
                     fark = simdi - yayin_tarihi
-                    if fark < timedelta(minutes=45):
+                    if fark < timedelta(minutes=15):
                         mesaj = (
                             f"🚨 *YENİ FIRSAT YAKALANDI!* 🚨\n\n"
                             f"🎮 *{item.get('title')}*\n"
