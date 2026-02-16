@@ -24,50 +24,45 @@ def telegram_gonder(mesaj):
     except: pass
 
 def haberleri_kontrol_et():
+    # RSS Beslemesi
     url = "https://www.eurogamer.net/feed/news"
-    # Daha gerçekçi tarayıcı kimliği (Bot korumasını aşmak için)
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     eski_haberler = hafiza_oku()
-    print(f"Hafızadaki haber sayısı: {len(eski_haberler)}")
     
     try:
         response = requests.get(url, headers=headers, timeout=15)
-        print(f"Site Durumu: {response.status_code}")
-        
         if response.status_code == 200:
-            # XML verisini okuyoruz
+            # Hem 'xml' hem 'html.parser' ile daha esnek tarama yapalım
             soup = BeautifulSoup(response.content, "xml")
-            haberler = soup.find_all("entry")
+            
+            # Hibrit Tarama: Bazı beslemeler 'entry', bazıları 'item' kullanır
+            haberler = soup.find_all("entry") or soup.find_all("item")
             print(f"Bulunan toplam haber: {len(haberler)}")
             
-            # Sadece en güncel 5 haberi kontrol et (Yeterli olacaktır)
-            for haber in haberler[:5]:
+            for haber in haberler[:10]:
                 try:
-                    haberi_id = haber.find("id").text
-                    baslik = haber.find("title").text
+                    # ID veya Linki benzersiz anahtar olarak kullan
+                    haberi_id = (haber.find("id") or haber.find("guid") or haber.find("link")).text.strip()
                     
-                    # Eğer bu ID hafızada yoksa -> YENİ HABER
                     if haberi_id not in eski_haberler:
-                        link = haber.find("link")['href']
+                        baslik = haber.find("title").text.strip()
+                        # Link etiketi RSS ve Atom'da farklı olabilir
+                        link_tag = haber.find("link")
+                        link = link_tag.get("href") if link_tag.has_attr("href") else link_tag.text
+                        
                         mesaj = f"📰 *YENİ HABER (Eurogamer)*\n\n*{baslik}*\n\n[Oku]({link})"
-                        
                         telegram_gonder(mesaj)
-                        print(f"--> GÖNDERİLDİ: {baslik}")
+                        print(f"Gönderildi: {baslik}")
                         
-                        # Hafızaya kaydet
                         hafiza_yaz(haberi_id)
                         eski_haberler.append(haberi_id)
-                    else:
-                        print(f"--- Eski haber: {baslik}")
-                        
                 except Exception as e:
                     print(f"Haber işleme hatası: {e}")
         else:
-            print("Siteye girilemedi (Engellendi veya hata).")
+            print(f"Hata Kodu: {response.status_code}")
             
     except Exception as e:
         print(f"Bağlantı Hatası: {e}")
