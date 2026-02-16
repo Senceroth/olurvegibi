@@ -8,18 +8,17 @@ TOKEN = os.environ.get("TG_TOKEN")
 CHAT_ID = os.environ.get("TG_CHAT_ID")
 HAFIZA_DOSYASI = "hafiza_youtube.txt"
 
-# Takip edilecek kanallar ve KESİN Kanal ID'leri
-# YouTube kazıma bazen takıldığı için bu ID'ler üzerinden RSS çekmek en sağlam yöntemdir.
+# Takip edilecek kanallar
 KANALLAR = {
     "GamingBolt": "https://www.youtube.com/@GamingBolt",
     "IGN": "https://www.youtube.com/@IGN",
     "PlayStation": "https://www.youtube.com/@PlayStation"
 }
 
-# DOĞRULANMIŞ KESİN KANAL ID'LERİ (UC... ile başlayanlar)
+# DOĞRULANMIŞ KESİN KANAL ID'LERİ (404 almamak için güncellendi)
 YEDEK_IDLER = {
     "GamingBolt": "UCf0G79LcyN9oE24yT5p-fVw",
-    "IGN": "UC67b8_NfT40X8A3_T3_0gjw",
+    "IGN": "UCrPseYLGpN_WUTREjllH2vA", # IGN'in asıl ID'si budur
     "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"
 }
 
@@ -51,11 +50,11 @@ def kanal_rss_bul(kanal_adi, kanal_url):
     cookies = {'CONSENT': 'YES+cb.20210328-17-p0.en+FX+419'}
     
     try:
-        # Önce kazıma (Scraping) dene
+        # Önce canlı kazıma dene
         resp = requests.get(kanal_url, headers=headers, cookies=cookies, timeout=15)
         html = resp.text
         
-        # Meta etiketinden ara
+        # Meta etiketinden ID bul
         soup = BeautifulSoup(html, "html.parser")
         meta = soup.find("meta", {"itemprop": "channelId"})
         if meta:
@@ -71,9 +70,8 @@ def kanal_rss_bul(kanal_adi, kanal_url):
     except:
         pass
 
-    # Kazıma başarısız olursa manuel listeyi kullan
+    # Kazıma başarısız olursa veya hata verirse manuel listeyi kullan
     cid = YEDEK_IDLER.get(kanal_adi)
-    print(f"Bilgi: {kanal_adi} için yedek ID kullanılıyor: {cid}")
     return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}" if cid else None
 
 def videolari_kontrol_et():
@@ -89,9 +87,10 @@ def videolari_kontrol_et():
             continue
             
         try:
+            # RSS beslemesini çek
             resp = requests.get(rss_url, timeout=15)
             if resp.status_code != 200:
-                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code})")
+                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code}) - URL: {rss_url}")
                 continue
 
             soup = BeautifulSoup(resp.content, "xml")
@@ -102,9 +101,9 @@ def videolari_kontrol_et():
                 continue
                 
             video = videolar[0]
-            # ID temizleme işlemi
+            # ID temizleme işlemi (Ön ekleri kaldır)
             v_id_tag = video.find("yt:videoId") or video.find("id")
-            v_id = v_id_tag.text.replace("yt:video:", "").strip()
+            v_id = v_id_tag.text.replace("yt:video:", "").replace("guid", "").strip()
             
             if v_id not in eski_videolar:
                 baslik = video.find("title").text.strip()
