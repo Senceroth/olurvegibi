@@ -1,53 +1,70 @@
 import requests
-from bs4 import BeautifulSoup
 import os
-from datetime import datetime, timedelta, timezone
 
 # GITHUB'DAN GELECEK ŞİFRELER
 TOKEN = os.environ.get("TG_TOKEN")
 CHAT_ID = os.environ.get("TG_CHAT_ID")
+HAFIZA_DOSYASI = "hafiza_gamerpower.txt"
 
-def telegram_gonder(mesaj):
+def hafiza_oku():
+    if not os.path.exists(HAFIZA_DOSYASI): return []
+    with open(HAFIZA_DOSYASI, "r") as f:
+        return f.read().splitlines()
+
+def hafiza_yaz(yeni_id):
+    with open(HAFIZA_DOSYASI, "a") as f:
+        f.write(f"{yeni_id}\n")
+
+def telegram_gonder(mesaj, resim_url=None):
     if not TOKEN or not CHAT_ID: return
     try:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
+        if resim_url:
+            url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+            payload = {"chat_id": CHAT_ID, "photo": resim_url, "caption": mesaj, "parse_mode": "Markdown"}
+        else:
+            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+            payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
         requests.post(url, json=payload, timeout=10)
     except: pass
 
-def haberleri_kontrol_et():
-    # Eurogamer'ın resmi RSS beslemesi (En güncel ve tarihli veri buradadır)
-    url = "https://www.eurogamer.net/feed/news"
-    headers = {"User-Agent": "Mozilla/5.0"}
+def firsatlari_tara():
+    print("GamerPower taranıyor (Hafızalı Mod)...")
+    url = "https://www.gamerpower.com/api/giveaways"
+    params = {"platform": "pc", "type": "game", "sort-by": "newest"}
+    
+    # Eskiden gönderdiklerimizi hafızadan okuyoruz
+    eski_idler = hafiza_oku()
     
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
-            # XML verisini okuyoruz
-            soup = BeautifulSoup(response.content, "xml")
-            haberler = soup.find_all("entry")
+            data = response.json()
             
-            # ŞU ANKİ ZAMAN (UTC)
-            simdi = datetime.now(timezone.utc)
-            
-            for haber in haberler:
-                # Haber Tarihini Al (Örn: 2024-02-05T14:30:00Z)
-                tarih_str = haber.find("published").text
-                # Tarihi Python formatına çevir
-                tarih_obj = datetime.fromisoformat(tarih_str.replace('Z', '+00:00'))
-                
-                # EĞER SON 15 DAKİKA İÇİNDE YAYINLANDIYSA (Güncellendi)
-                # (Bot her 10 dk'da bir çalışacağı için 5 dk güvenlik payı bıraktık)
-                fark = simdi - tarih_obj
-                if fark < timedelta(minutes=15):
-                    baslik = haber.find("title").text
-                    link = haber.find("link")['href']
+            # Sadece en yeni 5 tanesini kontrol etsek yeterli
+            # (Çok eskilere gitmeye gerek yok, zaten hafızada yoksa yenidir)
+            for item in data[:5]:
+                if item.get("status") == "Active":
+                    oyun_id = str(item.get("id"))
                     
-                    mesaj = f"📰 *YENİ HABER (Eurogamer)*\n\n*{baslik}*\n\n[Haberi Oku]({link})"
-                    telegram_gonder(mesaj)
-                    print(f"Haber gönderildi: {baslik}")
+                    # EĞER BU ID DAHA ÖNCE KAYDEDİLMEMİŞSE -> YENİDİR!
+                    if oyun_id not in eski_idler:
+                        mesaj = (
+                            f"🚨 *YENİ FIRSAT!* 🚨\n\n"
+                            f"🎮 *{item.get('title')}*\n"
+                            f"🏢 {item.get('platforms')}\n"
+                            f"💰 Değeri: {item.get('worth')}\n\n"
+                            f"[👉 Hemen Kap]({item.get('open_giveaway_url')})"
+                        )
+                        telegram_gonder(mesaj, item.get("thumbnail"))
+                        print(f"YENİ: {item.get('title')}")
+                        
+                        # Hafızaya ekle ve listeyi güncelle
+                        hafiza_yaz(oyun_id)
+                        eski_idler.append(oyun_id)
+        else:
+            print("API hatası.")
     except Exception as e:
         print(f"Hata: {e}")
 
 if __name__ == "__main__":
-    haberleri_kontrol_et()
+    firsatlari_tara()
