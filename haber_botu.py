@@ -24,48 +24,38 @@ def telegram_gonder(mesaj):
     except: pass
 
 def haberleri_kontrol_et():
-    # RSS Beslemesi
     url = "https://www.eurogamer.net/feed/news"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
+    headers = {"User-Agent": "Mozilla/5.0"}
     eski_haberler = hafiza_oku()
     
+    print("Eurogamer taranıyor...")
     try:
         response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
-            # Hem 'xml' hem 'html.parser' ile daha esnek tarama yapalım
             soup = BeautifulSoup(response.content, "xml")
-            
-            # Hibrit Tarama: Bazı beslemeler 'entry', bazıları 'item' kullanır
             haberler = soup.find_all("entry") or soup.find_all("item")
-            print(f"Bulunan toplam haber: {len(haberler)}")
             
             for haber in haberler[:10]:
                 try:
-                    # ID veya Linki benzersiz anahtar olarak kullan
                     haberi_id = (haber.find("id") or haber.find("guid") or haber.find("link")).text.strip()
+                    baslik = haber.find("title").text.strip()
                     
                     if haberi_id not in eski_haberler:
-                        baslik = haber.find("title").text.strip()
-                        # Link etiketi RSS ve Atom'da farklı olabilir
                         link_tag = haber.find("link")
                         link = link_tag.get("href") if link_tag.has_attr("href") else link_tag.text
                         
                         mesaj = f"📰 *YENİ HABER (Eurogamer)*\n\n*{baslik}*\n\n[Oku]({link})"
                         telegram_gonder(mesaj)
-                        print(f"Gönderildi: {baslik}")
+                        print(f"YENİ: {baslik}")
                         
                         hafiza_yaz(haberi_id)
                         eski_haberler.append(haberi_id)
-                except Exception as e:
-                    print(f"Haber işleme hatası: {e}")
-        else:
-            print(f"Hata Kodu: {response.status_code}")
-            
+                    else:
+                        # LOGLARA EKLEDİK: Artık neyi geçtiğini göreceksin
+                        print(f"Eski haber, geçiliyor: {baslik[:50]}...")
+                except: continue
     except Exception as e:
-        print(f"Bağlantı Hatası: {e}")
+        print(f"Hata: {e}")
 
 if __name__ == "__main__":
     haberleri_kontrol_et()
