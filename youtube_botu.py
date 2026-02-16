@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import os
 import re
 
-# GITHUB SECRETS
+# GITHUB SECRETS ÜZERİNDEN GELEN VERİLER
 TOKEN = os.environ.get("TG_TOKEN")
 CHAT_ID = os.environ.get("TG_CHAT_ID")
 HAFIZA_DOSYASI = "hafiza_youtube.txt"
@@ -15,17 +15,17 @@ KANALLAR = {
     "PlayStation": "https://www.youtube.com/@PlayStation"
 }
 
-# DOĞRULANMIŞ KESİN KANAL ID'LERİ
-# YouTube bazen handle üzerinden ID bulmayı engellediği için yedek liste her zaman hazır.
+# DOĞRULANMIŞ KESİN KANAL ID'LERİ (404 HATASINI ÖNLEMEK İÇİN GÜNCELLENDİ)
+# YouTube bazen handle (@) üzerinden ID bulmayı engellediği için bu liste hayat kurtarır.
 YEDEK_IDLER = {
     "GamingBolt": "UCf0G79LcyN9oE24yT5p-fVw",
-    "IGN": "UC67b8_NfT40X8A3_T3_0gjw",
+    "IGN": "UCrPseYLGpN_WUTREjllH2vA", # IGN'in evrensel ID'si
     "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"
 }
 
-# Standart tarayıcı başlığı
+# Tarayıcı gibi görünmek için kullanılan başlıklar
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.google.com/"
 }
@@ -41,8 +41,7 @@ def hafiza_yaz(veri):
         f.write(f"{veri}\n")
 
 def telegram_gonder(mesaj):
-    if not TOKEN or not CHAT_ID:
-        return
+    if not TOKEN or not CHAT_ID: return
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
@@ -52,31 +51,33 @@ def telegram_gonder(mesaj):
 
 def kanal_rss_bul(kanal_adi, kanal_url):
     """Kanal URL'sinden ID bulmaya çalışır, bulamazsa manuel listeden çeker."""
+    # Link sonunda /videos varsa temizle
+    temiz_url = kanal_url.split("/videos")[0]
     cookies = {'CONSENT': 'YES+cb.20210328-17-p0.en+FX+419'}
     
     try:
-        resp = requests.get(kanal_url, headers=HEADERS, cookies=cookies, timeout=15)
+        resp = requests.get(temiz_url, headers=HEADERS, cookies=cookies, timeout=15)
         html = resp.text
         
-        # Meta etiketinden ara
+        # 1. Yöntem: Meta etiketinden ara
         soup = BeautifulSoup(html, "html.parser")
         meta = soup.find("meta", {"itemprop": "channelId"})
         if meta:
             cid = meta['content']
             return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
         
-        # Regex ile ara
+        # 2. Yöntem: Sayfa kaynağından ChannelId regex'i ile ara
         match = re.search(r"\"channelId\":\"(UC[^\"]+)\"", html)
         if match:
             cid = match.group(1)
             return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
             
     except Exception as e:
-        print(f"Arama Hatası ({kanal_adi}): {e}")
+        print(f"Canlı tarama hatası ({kanal_adi}): {e}")
 
     # Kazıma başarısız olursa manuel listeyi kullan
     cid = YEDEK_IDLER.get(kanal_adi)
-    print(f"Bilgi: {kanal_adi} için yedek ID kullanılıyor.")
+    print(f"Bilgi: {kanal_adi} için yedek ID kullanılıyor: {cid}")
     return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}" if cid else None
 
 def videolari_kontrol_et():
@@ -92,11 +93,11 @@ def videolari_kontrol_et():
             continue
             
         try:
-            # KRİTİK: RSS ÇEKERKEN DE HEADERS KULLANMALIYIZ (404 hatasını bu çözer)
+            # RSS beslemesini headers ile çek (404 hatasını önlemek için kritik)
             resp = requests.get(rss_url, headers=HEADERS, timeout=15)
             
             if resp.status_code != 200:
-                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code})")
+                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code}) - URL: {rss_url}")
                 continue
 
             soup = BeautifulSoup(resp.content, "xml")
@@ -107,9 +108,9 @@ def videolari_kontrol_et():
                 continue
                 
             video = videolar[0]
-            # ID temizleme işlemi (Ön ekleri kaldır)
+            # Benzersiz video ID'sini al
             v_id_tag = video.find("yt:videoId") or video.find("id")
-            v_id = v_id_tag.text.replace("yt:video:", "").replace("guid", "").strip()
+            v_id = v_id_tag.text.replace("yt:video:", "").strip()
             
             if v_id not in eski_videolar:
                 baslik = video.find("title").text.strip()
@@ -122,7 +123,7 @@ def videolari_kontrol_et():
                 hafiza_yaz(v_id)
                 eski_videolar.append(v_id)
             else:
-                print(f"Zaten bildirilmiş: {v_id}")
+                print(f"Zaten bildirilmiş ID: {v_id}")
                     
         except Exception as e:
             print(f"Video kontrol hatası ({kanal_adi}): {e}")
