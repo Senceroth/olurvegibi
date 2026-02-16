@@ -36,10 +36,10 @@ def haberleri_kontrol_et():
                 # Tarihi Python formatına çevir
                 tarih_obj = datetime.fromisoformat(tarih_str.replace('Z', '+00:00'))
                 
-                # EĞER SON 45 DAKİKA İÇİNDE YAYINLANDIYSA
-                # (Bot her 30 dk'da bir çalışacağı için yakalar)
+                # EĞER SON 15 DAKİKA İÇİNDE YAYINLANDIYSA (Güncellendi)
+                # (Bot her 10 dk'da bir çalışacağı için 5 dk güvenlik payı bıraktık)
                 fark = simdi - tarih_obj
-                if fark < timedelta(minutes=45):
+                if fark < timedelta(minutes=15):
                     baslik = haber.find("title").text
                     link = haber.find("link")['href']
                     
