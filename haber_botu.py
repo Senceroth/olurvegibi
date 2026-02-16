@@ -1,70 +1,68 @@
 import requests
+from bs4 import BeautifulSoup
 import os
 
 # GITHUB'DAN GELECEK ŞİFRELER
 TOKEN = os.environ.get("TG_TOKEN")
 CHAT_ID = os.environ.get("TG_CHAT_ID")
-HAFIZA_DOSYASI = "hafiza_gamerpower.txt"
+HAFIZA_DOSYASI = "hafiza_eurogamer.txt"
 
 def hafiza_oku():
     if not os.path.exists(HAFIZA_DOSYASI): return []
     with open(HAFIZA_DOSYASI, "r") as f:
         return f.read().splitlines()
 
-def hafiza_yaz(yeni_id):
+def hafiza_yaz(veri):
     with open(HAFIZA_DOSYASI, "a") as f:
-        f.write(f"{yeni_id}\n")
+        f.write(f"{veri}\n")
 
-def telegram_gonder(mesaj, resim_url=None):
+def telegram_gonder(mesaj):
     if not TOKEN or not CHAT_ID: return
     try:
-        if resim_url:
-            url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
-            payload = {"chat_id": CHAT_ID, "photo": resim_url, "caption": mesaj, "parse_mode": "Markdown"}
-        else:
-            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-            payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
         requests.post(url, json=payload, timeout=10)
     except: pass
 
-def firsatlari_tara():
-    print("GamerPower taranıyor (Hafızalı Mod)...")
-    url = "https://www.gamerpower.com/api/giveaways"
-    params = {"platform": "pc", "type": "game", "sort-by": "newest"}
+def haberleri_kontrol_et():
+    # Eurogamer'ın resmi RSS beslemesi
+    url = "https://www.eurogamer.net/feed/news"
+    headers = {"User-Agent": "Mozilla/5.0"}
     
-    # Eskiden gönderdiklerimizi hafızadan okuyoruz
-    eski_idler = hafiza_oku()
+    # Hafızadaki eski haber ID'lerini oku
+    eski_haberler = hafiza_oku()
     
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
-            data = response.json()
+            # XML verisini okuyoruz
+            soup = BeautifulSoup(response.content, "xml")
+            haberler = soup.find_all("entry")
             
-            # Sadece en yeni 5 tanesini kontrol etsek yeterli
+            # Sadece en güncel 5 haberi kontrol etsek yeterli
             # (Çok eskilere gitmeye gerek yok, zaten hafızada yoksa yenidir)
-            for item in data[:5]:
-                if item.get("status") == "Active":
-                    oyun_id = str(item.get("id"))
+            for haber in haberler[:5]:
+                try:
+                    # Her haberin kendine özel bir ID'si vardır
+                    haberi_id = haber.find("id").text
                     
-                    # EĞER BU ID DAHA ÖNCE KAYDEDİLMEMİŞSE -> YENİDİR!
-                    if oyun_id not in eski_idler:
-                        mesaj = (
-                            f"🚨 *YENİ FIRSAT!* 🚨\n\n"
-                            f"🎮 *{item.get('title')}*\n"
-                            f"🏢 {item.get('platforms')}\n"
-                            f"💰 Değeri: {item.get('worth')}\n\n"
-                            f"[👉 Hemen Kap]({item.get('open_giveaway_url')})"
-                        )
-                        telegram_gonder(mesaj, item.get("thumbnail"))
-                        print(f"YENİ: {item.get('title')}")
+                    # EĞER BU ID HAFIZADA YOKSA -> YENİDİR!
+                    if haberi_id not in eski_haberler:
+                        baslik = haber.find("title").text
+                        link = haber.find("link")['href']
                         
-                        # Hafızaya ekle ve listeyi güncelle
-                        hafiza_yaz(oyun_id)
-                        eski_idler.append(oyun_id)
-        else:
-            print("API hatası.")
+                        mesaj = f"📰 *HABER (Eurogamer)*\n\n*{baslik}*\n\n[Oku]({link})"
+                        telegram_gonder(mesaj)
+                        print(f"Yeni haber gönderildi: {baslik}")
+                        
+                        # Hafızaya kaydet
+                        hafiza_yaz(haberi_id)
+                        eski_haberler.append(haberi_id)
+                except:
+                    continue # ID veya başlık bulunamazsa o haberi atla
+
     except Exception as e:
         print(f"Hata: {e}")
 
 if __name__ == "__main__":
-    firsatlari_tara()
+    haberleri_kontrol_et()
