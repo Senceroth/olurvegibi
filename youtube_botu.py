@@ -64,10 +64,10 @@ def videolari_kontrol_et():
                     tarih_str = video.find("published").text
                     tarih_obj = datetime.fromisoformat(tarih_str)
                     
-                    # EĞER SON 45 DAKİKA İÇİNDE YAYINLANDIYSA
-                    # (Bot her 30 dk'da bir çalışacağı için bu süre idealdir)
+                    # EĞER SON 15 DAKİKA İÇİNDE YAYINLANDIYSA (Güncellendi)
+                    # (Bot her 10 dk'da bir çalışacağı için bu süre idealdir)
                     fark = simdi - tarih_obj
-                    if fark < timedelta(minutes=45):
+                    if fark < timedelta(minutes=15):
                         baslik = video.find("title").text
                         link = video.find("link")['href']
                         kanal_adi = video.find("author").find("name").text
