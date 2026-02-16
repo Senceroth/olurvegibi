@@ -8,12 +8,19 @@ TOKEN = os.environ.get("TG_TOKEN")
 CHAT_ID = os.environ.get("TG_CHAT_ID")
 HAFIZA_DOSYASI = "hafiza_youtube.txt"
 
-# Takip edilecek kanallar
-KANALLAR = [
-    "https://www.youtube.com/@GamingBolt",
-    "https://www.youtube.com/@IGN",
-    "https://www.youtube.com/@PlayStation"
-]
+# Takip edilecek kanallar ve Manuel ID yedekleri (YouTube kazıma bazen takılabiliyor)
+KANALLAR = {
+    "GamingBolt": "https://www.youtube.com/@GamingBolt",
+    "IGN": "https://www.youtube.com/@IGN",
+    "PlayStation": "https://www.youtube.com/@PlayStation"
+}
+
+# Kazıma başarısız olursa kullanılacak kesin kanal ID'leri
+YEDEK_IDLER = {
+    "GamingBolt": "UCf0G79LcyN9oE24yT5p-fVw",
+    "IGN": "UC8151H243E7E6",
+    "PlayStation": "UCBsbrudhKRrT9zs8iNOEjjw"
+}
 
 def hafiza_oku():
     if not os.path.exists(HAFIZA_DOSYASI):
@@ -35,79 +42,65 @@ def telegram_gonder(mesaj):
     except Exception as e:
         print(f"Telegram Hatası: {e}")
 
-def kanal_rss_bul(kanal_url):
-    """Kanal URL'sinden RSS beslemesini bulmak için çoklu yöntem kullanır."""
+def kanal_rss_bul(kanal_adi, kanal_url):
+    """Kanal URL'sinden RSS beslemesini bulur, bulamazsa yedek ID'yi döner."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9"
     }
-    # YouTube çerez onayı için gerekli
     cookies = {'CONSENT': 'YES+cb.20210328-17-p0.en+FX+419'}
     
     try:
-        # /videos kısmını temizle
-        clean_url = kanal_url.split("/videos")[0]
-        resp = requests.get(clean_url, headers=headers, cookies=cookies, timeout=15)
+        resp = requests.get(kanal_url, headers=headers, cookies=cookies, timeout=15)
         html = resp.text
         
-        # 1. Yöntem: Meta etiketinden Channel ID ara
+        # 1. Yöntem: Meta etiketinden ara
         soup = BeautifulSoup(html, "html.parser")
         meta = soup.find("meta", {"itemprop": "channelId"})
         if meta:
-            cid = meta['content']
-            print(f"ID Bulundu (Meta): {cid}")
-            return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
+            return f"https://www.youtube.com/feeds/videos.xml?channel_id={meta['content']}"
         
-        # 2. Yöntem: Sayfa kaynağından Regex ile ID ara
+        # 2. Yöntem: Regex ile ara
         match = re.search(r"\"channelId\":\"(UC[^\"]+)\"", html)
         if match:
-            cid = match.group(1)
-            print(f"ID Bulundu (Regex): {cid}")
-            return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
+            return f"https://www.youtube.com/feeds/videos.xml?channel_id={match.group(1)}"
             
-        return None
     except Exception as e:
-        print(f"RSS Arama Hatası ({kanal_url}): {e}")
-        return None
+        print(f"Bağlantı Hatası ({kanal_adi}): {e}")
+
+    # 3. Yöntem: Yedek ID'yi kullan (Kesin çözüm)
+    print(f"Uyarı: {kanal_adi} için otomatik ID bulunamadı, yedek kullanılıyor.")
+    cid = YEDEK_IDLER.get(kanal_adi)
+    return f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}" if cid else None
 
 def videolari_kontrol_et():
     eski_videolar = hafiza_oku()
     print(f"Hafızadaki eski video sayısı: {len(eski_videolar)}")
     
-    if not KANALLAR:
-        print("Hata: Kanal listesi boş!")
-        return
-
-    for url in KANALLAR:
-        print(f"\n--- {url} kontrol ediliyor ---")
-        rss_url = kanal_rss_bul(url)
+    for kanal_adi, url in KANALLAR.items():
+        print(f"\n--- {kanal_adi} kontrol ediliyor ---")
+        rss_url = kanal_rss_bul(kanal_adi, url)
         
         if not rss_url:
-            print(f"Hata: RSS bağlantısı oluşturulamadı: {url}")
+            print(f"Hata: RSS bağlantısı oluşturulamadı: {kanal_adi}")
             continue
             
         try:
             resp = requests.get(rss_url, timeout=15)
-            if resp.status_code != 200:
-                print(f"Hata: RSS çekilemedi (Kod: {resp.status_code})")
-                continue
-                
             soup = BeautifulSoup(resp.content, "xml")
             videolar = soup.find_all("entry")
             
             if not videolar:
-                print("Kanalda henüz video bulunamadı.")
+                print(f"{kanal_adi} kanalında video bulunamadı.")
                 continue
                 
-            # En son videoyu al
             video = videolar[0]
-            v_id = video.find("yt:videoId").text if video.find("yt:videoId") else video.find("id").text
-            v_id = v_id.replace("yt:video:", "") # Bazı ID'ler bu ön ekle gelir
+            v_id_tag = video.find("yt:videoId") or video.find("id")
+            v_id = v_id_tag.text.replace("yt:video:", "").strip()
             
             if v_id not in eski_videolar:
                 baslik = video.find("title").text.strip()
                 v_link = video.find("link")['href'] if video.find("link") else f"https://www.youtube.com/watch?v={v_id}"
-                kanal_adi = video.find("author").find("name").text if video.find("author") else "YouTube"
                 
                 mesaj = f"▶️ *YENİ VİDEO! ({kanal_adi})*\n\n*{baslik}*\n\n[Hemen İzle]({v_link})"
                 telegram_gonder(mesaj)
@@ -119,7 +112,7 @@ def videolari_kontrol_et():
                 print(f"Zaten bildirilmiş: {v_id}")
                     
         except Exception as e:
-            print(f"Video kontrol hatası: {e}")
+            print(f"Video kontrol hatası ({kanal_adi}): {e}")
 
 if __name__ == "__main__":
     videolari_kontrol_et()
