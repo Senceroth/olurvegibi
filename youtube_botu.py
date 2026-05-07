@@ -7,12 +7,25 @@ CHAT_ID = os.environ.get("TG_CHAT_ID")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY") 
 HAFIZA_DOSYASI = "hafiza_youtube.txt"
 
-# KESİN VE DOĞRULANMIŞ KANAL ID'LERİ (GÜNCELLENDİ)
+# KESİN VE DOĞRULANMIŞ KANAL ID'LERİ (ESKİLER VE YENİLER BİR ARADA)
 KANALLAR = {
+    # --- MEVCUT (ESKİ USUL) KANALLAR ---
     "GamingBolt": "UCXa_bzvv7Oo1glaW9FldDhQ",
     "IGN": "UCKy1dAqELo0zrOtPkf0eTMw",
-    "PlayStation": "UC-2Y8dQb0S6DtpxNgAKoJKA", # DÜZELTİLDİ: Resmi PlayStation Kanalı
-    "GameSpot": "UCbu2SsF-Or3Rsn3NxqODImw"    # YENİ EKLENDİ: GameSpot
+    "PlayStation": "UC-2Y8dQb0S6DtpxNgAKoJKA", 
+    "GameSpot": "UCbu2SsF-Or3Rsn3NxqODImw",    
+    
+    # --- YENİ EKLENEN (@ HANDLE) KANALLAR ---
+    "SplatterCatGaming": "@Splattercatgaming",
+    "VGaming4": "@vgaming4",
+    "GameTrailers": "@GameTrailers",
+    "GameJoy Explained": "@GameJoyExplained",
+    "Idlecub": "@idlecub",
+    "Gohjoe": "@Gohjoe",
+    "GameClips4K": "@GameClips4KYTT",
+    "FLEEKAZOID": "@FLEEKAZOID",
+    "Kaganath": "@Kaganath",
+    "Wanderbots": "@wanderbots"
 }
 
 def hafiza_oku():
@@ -45,18 +58,29 @@ def get_uploads_playlist_id(kanal_id):
     Kanalın 'Yüklenenler' listesinin gerçek ID'sini API'den sorar.
     """
     url = "https://www.googleapis.com/youtube/v3/channels"
-    params = {
-        "key": YOUTUBE_API_KEY,
-        "id": kanal_id,
-        "part": "contentDetails"
-    }
+    
+    # EĞER "@" İLE BAŞLIYORSA YENİ SİSTEMLE (forHandle) SOR
+    if kanal_id.startswith("@"):
+        params = {
+            "key": YOUTUBE_API_KEY,
+            "forHandle": kanal_id,
+            "part": "contentDetails"
+        }
+    # EĞER "UC" İLE BAŞLIYORSA SENİN ESKİ SİSTEMİNLE (id) SOR
+    else:
+        params = {
+            "key": YOUTUBE_API_KEY,
+            "id": kanal_id,
+            "part": "contentDetails"
+        }
+        
     try:
         response = requests.get(url, params=params, timeout=10)
         data = response.json()
         
         # Eğer ID yanlışsa API 'items' dizisini boş döndürür
         if "items" not in data or len(data["items"]) == 0:
-            print(f"Hata: Bu Kanal ID ({kanal_id}) geçersiz!")
+            print(f"Hata: Bu Kanal ID veya Handle ({kanal_id}) geçersiz!")
             return None
             
         return data['items'][0]['contentDetails']['relatedPlaylists']['uploads']
