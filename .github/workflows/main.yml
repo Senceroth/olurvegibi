@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Depoyu Çek
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # v3 -> v4 güncellendi (Node.js uyarısı için)
 
       - name: Python Kur
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # v4 -> v5 güncellendi (Node.js uyarısı için)
         with:
           python-version: '3.9'
 
@@ -43,11 +43,10 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }} # KRİTİK: Bu satır olmadan API botu çalışmaz!
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }} 
         run: python youtube_botu.py
 
       # --- HAFIZAYI KAYDET (GİT PUSH) ---
-      # Botların oluşturduğu .txt dosyalarını depoya kalıcı olarak kaydeder
       - name: Hafızayı Güncelle
         run: |
           git config --global user.name 'Takip Botu'
