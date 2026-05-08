@@ -66,7 +66,7 @@ def get_uploads_playlist_id(kanal_id):
             "forHandle": kanal_id,
             "part": "contentDetails"
         }
-    # EĞER "UC" İLE BAŞLIYORSA SENİN ESKİ SİSTEMİNLE (id) SOR
+    # EĞER "UC" İLE BAŞLIYORSA ESKİ SİSTEMLE (id) SOR
     else:
         params = {
             "key": YOUTUBE_API_KEY,
@@ -88,20 +88,20 @@ def get_uploads_playlist_id(kanal_id):
         print(f"Playlist ID Bulma Hatası: {e}")
         return None
 
-def son_videoyu_getir(kanal_adi, kanal_id):
+def son_videolari_getir(kanal_adi, kanal_id):
     # Önce doğru playlist ID'sini buluyoruz
     uploads_id = get_uploads_playlist_id(kanal_id)
     
     if not uploads_id:
         print(f"Hata: {kanal_adi} için liste bulunamadı.")
-        return None
+        return []
     
     url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
         "key": YOUTUBE_API_KEY,
         "playlistId": uploads_id,
         "part": "snippet",
-        "maxResults": 1
+        "maxResults": 5  # DÜZELTİLDİ: ARTIK SADECE 1 DEĞİL, SON 5 VİDEOYA BAKIYOR
     }
     
     try:
@@ -110,22 +110,24 @@ def son_videoyu_getir(kanal_adi, kanal_id):
         
         if "error" in data:
             print(f"API Hatası ({kanal_adi}): {data['error']['message']}")
-            return None
+            return []
             
         items = data.get("items", [])
-        if not items:
-            return None
-            
-        snippet = items[0]["snippet"]
-        v_id = snippet["resourceId"]["videoId"]
-        return {
-            "id": v_id,
-            "baslik": snippet["title"],
-            "link": f"https://www.youtube.com/watch?v={v_id}"
-        }
+        videolar = []
+        
+        # Listeyi tersine çeviriyoruz (reversed) ki eski videoyu önce, en yenisini en son atsın
+        for item in reversed(items):
+            snippet = item["snippet"]
+            v_id = snippet["resourceId"]["videoId"]
+            videolar.append({
+                "id": v_id,
+                "baslik": snippet["title"],
+                "link": f"https://www.youtube.com/watch?v={v_id}"
+            })
+        return videolar
     except Exception as e:
         print(f"Hata ({kanal_adi}): {e}")
-        return None
+        return []
 
 def videolari_kontrol_et():
     if not YOUTUBE_API_KEY:
@@ -136,17 +138,19 @@ def videolari_kontrol_et():
     
     for kanal_adi, kanal_id in KANALLAR.items():
         print(f"Kontrol ediliyor: {kanal_adi}...")
-        video = son_videoyu_getir(kanal_adi, kanal_id)
+        videolar = son_videolari_getir(kanal_adi, kanal_id)
         
-        if video and video["id"] not in eski_videolar:
-            mesaj = f"▶️ *YENİ VİDEO! ({kanal_adi})*\n\n*{video['baslik']}*\n\n[İzle]({video['link']})"
-            telegram_gonder(mesaj)
-            print(f"--> GÖNDERİLDİ: {video['baslik']}")
-            
-            hafiza_yaz(video["id"])
-            eski_videolar.add(video["id"])
-        elif video:
-            print(f"Zaten kayıtlı: {video['baslik'][:40]}...")
+        # Çekilen 5 videoyu sırayla kontrol et
+        for video in videolar:
+            if video["id"] not in eski_videolar:
+                mesaj = f"▶️ *YENİ VİDEO! ({kanal_adi})*\n\n*{video['baslik']}*\n\n[İzle]({video['link']})"
+                telegram_gonder(mesaj)
+                print(f"--> GÖNDERİLDİ: {video['baslik']}")
+                
+                hafiza_yaz(video["id"])
+                eski_videolar.add(video["id"])
+            else:
+                print(f"Zaten kayıtlı: {video['baslik'][:40]}...")
 
 if __name__ == "__main__":
     videolari_kontrol_et()
