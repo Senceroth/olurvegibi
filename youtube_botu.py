@@ -15,7 +15,7 @@ KANALLAR = {
     "PlayStation": "UC-2Y8dQb0S6DtpxNgAKoJKA", 
     "GameSpot": "UCbu2SsF-Or3Rsn3NxqODImw",    
     
-    # --- YENİ EKLENEN (@ HANDLE) KANALLAR ---
+    # --- ESKİ EKLENEN (@ HANDLE) KANALLAR ---
     "SplatterCatGaming": "@Splattercatgaming",
     "VGaming4": "@vgaming4",
     "GameTrailers": "@GameTrailers",
@@ -25,7 +25,19 @@ KANALLAR = {
     "GameClips4K": "@GameClips4KYTT",
     "FLEEKAZOID": "@FLEEKAZOID",
     "Kaganath": "@Kaganath",
-    "Wanderbots": "@wanderbots"
+    "Wanderbots": "@wanderbots",
+
+    # --- YENİ EKLENEN KANALLAR ---
+    "Indie Games Hub": "@IndieHub01",
+    "PowerNana": "@powernana",
+    "SvalPlay": "@SvalPlay",
+    "Nookrium": "@Nookrium",
+    "Kaiffu": "@Kaiffu",
+    "Jacob Forster": "@JacobForster",
+    "Ben the Human": "@BenoutofContext",
+    "Fisk": "@Fisk",
+    "SuperJoshua06": "@SuperJoshua06",
+    "Orbital Potato": "@orbitalpotato"
 }
 
 def hafiza_oku():
