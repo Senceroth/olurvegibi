@@ -37,7 +37,10 @@ KANALLAR = {
     "Ben the Human": "@BenoutofContext",
     "Fisk": "@Fisk",
     "SuperJoshua06": "@SuperJoshua06",
-    "Orbital Potato": "@orbitalpotato"
+    "Orbital Potato": "@orbitalpotato",
+    "Skoottie": "@Skoottie",
+    "Asmongold TV": "@AsmonTV",
+    "GameForce": "@GameForceTube"
 }
 
 def hafiza_oku():
