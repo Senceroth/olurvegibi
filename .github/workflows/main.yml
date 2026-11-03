@@ -19,7 +19,7 @@ jobs:
       - name: Python Kur
         uses: actions/setup-python@v5 # v4 -> v5 güncellendi (Node.js uyarısı için)
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Kütüphaneleri Yükle
         run: pip install requests beautifulsoup4 lxml
